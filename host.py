@@ -180,8 +180,8 @@ while True:
 		if values['log_cont']:
 			while True:
 				measure_and_log() 
-			if event == 'Stop Logging':
-				break
+				if event == 'Stop Logging':
+					break
 		else:
 			for i in range(0, values['times_to_log']):
 				measure_and_log()
