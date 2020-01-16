@@ -27,6 +27,8 @@ def scan_USB_connect(): # need to add exceptions
 	try: 
 		rm = pyvisa.ResourceManager().list_resources()[0] # first resource
 		scope = ivi.agilent.agilentMSO7104A(rm, prefer_pyvisa = True)
+		scope.close()
+		scope = ivi.agilent.agilentMSO7104A(rm, prefer_pyvisa = True)
 		usb_connect_success = True
 	except pyvisa.errors.VisaIOError:
 		usb_connect_success = False
@@ -35,7 +37,7 @@ def configure_timebase(time_per_rec, acq_type):
 	global scope
 	scope.acquisition.time_per_record = time_per_rec # sec/Div. max:1e3(50s/Div) - min:1e-9(500ps/Div)
 	scope.acquisition.type = acq_type # 'normal', high_resolution', 'average', 'peak_detect'
-
+	return True # crude af
 	# print(round(scope.acquisition.sample_rate)) # samples/sec
 	                                           
 def configure_channels(what_channel, ch_enable, ch_offset, ch_range, ch_coupling):
@@ -54,15 +56,26 @@ def configure_trigger(tri_source, tri_slope, tri_level,tri_is_continuous):
 	scope.trigger.level = tri_level				 # level in Volts
 	scope.trigger.continuous = tri_is_continuous # True/False. 
 
-def measure_and_log():
+def construct_datetime_name():
+	global scope
+
+	dt_for_filename = [' '] * 4
+	counter = 0 # used for naming 
+	for ch in scope.channels[0:3]:
+		if ch.enabled: 
+			# datetime_channel construct filename
+			dt_for_filename[counter] = datetime.now().strftime("%d-%m-%Y_%H-%M-%S_ch") + \
+									   str(counter) + '.txt'
+		counter += 1
+	return dt_for_filename
+
+def measure_and_log(dt_for_filename):
 	global scope
 
 	counter = 0 # used for naming 
 	for ch in scope.channels[0:3]:
 		if ch.enabled: 
-			# datetime_channel construct filename
-			dt_for_filename = datetime.now().strftime("%d-%m-%Y_%H-%M-%S_ch") + str(counter) + '.txt'
-			with open(dt_for_filename, 'a') as f:
+			with open(dt_for_filename[counter], 'a') as f:
 				scope.measurement.initiate()
 				waveform = ch.measurement.fetch_waveform()
 				for t in waveform:
@@ -81,7 +94,6 @@ layout = [
 [sg.Frame(layout=[ 
 	[sg.Text('Timebase:'), sg.In(size=(8,1) ,key='timediv'), sg.Text('sec/div'), sg.VerticalSeparator(pad=None),
 	 sg.Text('Acquisition Type:'), sg.Combo(['normal', 'high_resolution', 'average', 'peak_detect'], key='acq_type')],
-	[sg.Text('Current Sampling Rate'), sg.Text('x', text_color='red', key='sampling_rate', size=(7,1)), sg.Text('samples/sec')],
 	[sg.Button('Set Time Settings', disabled = True)]
 	], title='Time Settings', title_color='black')],
 
@@ -122,7 +134,7 @@ layout = [
 
 ]
 
-window = sg.Window('Agilent MSO7104A Control v1.0', layout, no_titlebar=False, grab_anywhere=True)
+window = sg.Window('Agilent MSO7104A Control v1.0', layout, no_titlebar=False)
 
 while True:
 	event, values = window.read()
@@ -134,7 +146,7 @@ while True:
 	if event == 'Connect':
 		scan_USB_connect()
 		if usb_connect_success is True:
-			window.Element('Set Time Settings').Update(disabled=True)
+			window.Element('Set Time Settings').Update(disabled=False)
 			window.Element('Set Amplitude Settings').Update(disabled=False)
 			window.Element('Set Trigger Settings').Update(disabled=False)
 			window.Element('Start Logging').Update(disabled=False)
@@ -146,27 +158,34 @@ while True:
 
 	if event == 'Disconnect':
 		scope.close()
+		window.Element('Set Time Settings').Update(disabled=True)
+		window.Element('Set Amplitude Settings').Update(disabled=True)
+		window.Element('Set Trigger Settings').Update(disabled=True)
+		window.Element('Start Logging').Update(disabled=True)
+		window.Element('Stop Logging').Update(disabled=True)
+		window.Element('Disconnect').Update(disabled=True)
+		window.Element(key='status').Update('DISCON', text_color='green')
 
-	if event == 'Set Time Settings':
-		if is_number(values['timediv']):
-			configure_timebase(values['timediv'], values['acq_type'])	
-			window.Element('sampling_rate').Update(str('%.2E' % Decimal(scope.acquisition.sample_rate)), text_color='green')
+	if event == 'Set Time Settings':				# configure_timebase takes total time window as argument. Osc has 10 div
+		if is_number(values['timediv']):			# multiply by 10 for user input as s/div
+			configure_timebase(str(float(values['timediv'])*10), values['acq_type'])
 
-	if event == 'Set Amplitude Settings':
-		if (is_number(values['ch0_voltdiv'])):
-			configure_channels(0, values['ch0_EN'], 0, values['ch0_voltdiv'], values['ch0_coupling'])
+	if event == 'Set Amplitude Settings': 			# configure channels takes total amplitude as argument. Osc has 8 div
+		if (is_number(values['ch0_voltdiv'])):		# multiply by 8 for user input as V/div
+			print(str(float(values['ch0_voltdiv']) * 8))
+			configure_channels(0, values['ch0_EN'], 0, str(float(values['ch0_voltdiv'])*8), values['ch0_coupling'])
 		else:
 			pass
 		if (is_number(values['ch1_voltdiv'])):
-			configure_channels(1, values['ch1_EN'], 0, values['ch1_voltdiv'], values['ch1_coupling'])
+			configure_channels(1, values['ch1_EN'], 0, str(float(values['ch1_voltdiv'])*8), values['ch1_coupling'])
 		else:
 			pass
-		if (is_number(values['ch2_voltdiv'])):
-			configure_channels(2, values['ch2_EN'], 0, values['ch2_voltdiv'], values['ch2_coupling'])
+		if (is_number(values['ch2_voltdiv'])):	
+			configure_channels(2, values['ch2_EN'], 0, str(float(values['ch2_voltdiv'])*8), values['ch2_coupling'])
 		else:
 			pass
 		if (is_number(values['ch3_voltdiv'])):
-			configure_channels(3, values['ch3_EN'], 0, values['ch3_voltdiv'], values['ch3_coupling'])
+			configure_channels(3, values['ch3_EN'], 0, str(float(values['ch3_voltdiv'])*8), values['ch3_coupling'])
 		else:
 			pass
 
@@ -177,15 +196,33 @@ while True:
 			pass
 
 	if event == 'Start Logging':
-		if values['log_cont']:
-			while True:
-				measure_and_log() 
-				if event == 'Stop Logging':
-					break
-		else:
-			for i in range(0, values['times_to_log']):
-				measure_and_log()
-				if event == 'Stop Logging':
-					break
+		
+		window.Element(key='status').Update('LOG', text_color='blue')
+		dt_for_filename = construct_datetime_name();
 
+		while True:
+			# timeout needed for non-blocking read.
+			event, values = window.read(timeout = 0.001)
+			if event == 'Stop Logging':
+				window.Element(key='status').Update('IDLE', text_color='green')
+				break
+
+			if values['log_cont']:
+				measure_and_log(dt_for_filename) 
+
+			elif is_number(values['times_to_log']) and int(values['times_to_log']) > 0:
+				for i in range(0, int(values['times_to_log'])):
+					measure_and_log(dt_for_filename)
+
+					# timeout needed for non-blocking read 
+					event, values = window.read(timeout = 0.001)	
+					if event == 'Stop Logging':
+						window.Element(key='status').Update('IDLE', text_color='green')
+						break
+
+				window.Element(key='status').Update('IDLE', text_color='green')
+				break
+
+if scope:
+	scope.close()
 window.close()
