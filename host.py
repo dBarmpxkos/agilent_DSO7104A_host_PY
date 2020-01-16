@@ -37,8 +37,8 @@ def configure_timebase(time_per_rec, acq_type):
 	global scope
 	scope.acquisition.time_per_record = time_per_rec # sec/Div. max:1e3(50s/Div) - min:1e-9(500ps/Div)
 	scope.acquisition.type = acq_type # 'normal', high_resolution', 'average', 'peak_detect'
+	# print(scope.acquisition.sample_rate) # samples/sec
 	return True # crude af
-	# print(round(scope.acquisition.sample_rate)) # samples/sec
 	                                           
 def configure_channels(what_channel, ch_enable, ch_offset, ch_range, ch_coupling):
 	global scope
@@ -47,11 +47,12 @@ def configure_channels(what_channel, ch_enable, ch_offset, ch_range, ch_coupling
 	scope.channels[what_channel].range 		= ch_range		# Volts/Div
 	scope.channels[what_channel].coupling 	= ch_coupling 	# 'ac', 'dc', 'gnd'
 
-def configure_trigger(tri_source, tri_slope, tri_level,tri_is_continuous):
+def configure_trigger(tri_source, tri_modifier, tri_slope, tri_level,tri_is_continuous):
 	global scope
 	# hardcoded for now
 	scope.trigger.type = 'edge'
 	scope.trigger.source = scope.channels[tri_source]
+	scope.trigger.modifier = tri_modifier
 	scope.trigger.edge.slope = tri_slope		 # 'positive', 'negative'
 	scope.trigger.level = tri_level				 # level in Volts
 	scope.trigger.continuous = tri_is_continuous # True/False. 
@@ -69,7 +70,7 @@ def construct_datetime_name():
 		counter += 1
 	return dt_for_filename
 
-def measure_and_log(dt_for_filename):
+def measure_and_log(dt_for_filename, time_to_measure):
 	global scope
 
 	counter = 0 # used for naming 
@@ -77,6 +78,7 @@ def measure_and_log(dt_for_filename):
 		if ch.enabled: 
 			with open(dt_for_filename[counter], 'a') as f:
 				scope.measurement.initiate()
+				sleep(time_to_measure) 			# crude way to give time before requesting the waveform
 				waveform = ch.measurement.fetch_waveform()
 				for t in waveform:
 					f.write('\t'.join(str(s) for s in t) + '\n')
@@ -92,9 +94,9 @@ layout = [
 
 # ---- Time Settings ---------------------------------------------------
 [sg.Frame(layout=[ 
-	[sg.Text('Timebase:'), sg.In(size=(8,1) ,key='timediv'), sg.Text('sec/div'), sg.VerticalSeparator(pad=None),
+	[sg.Text('Timebase:'), sg.In(size=(8,1) ,key='timediv', default_text = 1e-3), sg.Text('sec/div'), sg.VerticalSeparator(pad=None),
 	 sg.Text('Acquisition Type:'), sg.Combo(['normal', 'high_resolution', 'average', 'peak_detect'], key='acq_type')],
-	[sg.Button('Set Time Settings', disabled = True)]
+	[sg.Button('Set Time Settings', disabled = True)] 
 	], title='Time Settings', title_color='black')],
 
 # ---- Amplitude Configuration -----------------------------------------
@@ -117,9 +119,10 @@ layout = [
 # ---- Trigger ---------------------------------------------------------
 [sg.Frame(layout=[ 
 	[sg.Text('Slope:'), sg.Combo(['positive', 'negative'], key='tri_slope'),
-	 sg.Text('Level'), sg.In(size=(8,1), default_text = 0.5, key='tri_level'), sg.Text('V')], 
+	 sg.Text('Level'), sg.In(size=(8,1), default_text = 0.5, key='tri_level'), sg.Text('V'), 
+	 sg.Text('Source Channel:'), sg.Combo([0,1,2,3], key='tri_source')], 
 	[sg.Checkbox('Continue After Trigger', default = True, key='tri_cont'),
-	 sg.Text('Source Channel:'), sg.Combo([0,1,2,3], key='tri_source')],
+	 sg.Text('Modifier:'), sg.Combo(['none', 'auto'], key='tri_modifier')],
 	[sg.Button('Set Trigger Settings', disabled = True)]
 	], title='Trigger Settings', title_color='gray')],
 
@@ -172,7 +175,6 @@ while True:
 
 	if event == 'Set Amplitude Settings': 			# configure channels takes total amplitude as argument. Osc has 8 div
 		if (is_number(values['ch0_voltdiv'])):		# multiply by 8 for user input as V/div
-			print(str(float(values['ch0_voltdiv']) * 8))
 			configure_channels(0, values['ch0_EN'], 0, str(float(values['ch0_voltdiv'])*8), values['ch0_coupling'])
 		else:
 			pass
@@ -191,31 +193,29 @@ while True:
 
 	if event == 'Set Trigger Settings':
 		if (is_number(values['tri_level'])):
-			configure_trigger(values['tri_source'], values['tri_slope'], values['tri_level'], values['tri_cont'])
+			configure_trigger(values['tri_source'], values['tri_modifier'], values['tri_slope'], values['tri_level'], values['tri_cont'])
 		else:
 			pass
 
 	if event == 'Start Logging':
-		
 		window.Element(key='status').Update('LOG', text_color='blue')
 		dt_for_filename = construct_datetime_name();
 
 		while True:
 			# timeout needed for non-blocking read.
-			event, values = window.read(timeout = 0.001)
+			event, values = window.read(timeout = 0.01)
 			if event == 'Stop Logging':
 				window.Element(key='status').Update('IDLE', text_color='green')
 				break
 
 			if values['log_cont']:
-				measure_and_log(dt_for_filename) 
+				measure_and_log(dt_for_filename, float(values['timediv'])*10)
 
 			elif is_number(values['times_to_log']) and int(values['times_to_log']) > 0:
 				for i in range(0, int(values['times_to_log'])):
-					measure_and_log(dt_for_filename)
-
+					measure_and_log(dt_for_filename, float(values['timediv'])*10)
 					# timeout needed for non-blocking read 
-					event, values = window.read(timeout = 0.001)	
+					event, values = window.read(timeout = 0.01)	
 					if event == 'Stop Logging':
 						window.Element(key='status').Update('IDLE', text_color='green')
 						break
