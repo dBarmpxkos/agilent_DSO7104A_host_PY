@@ -232,8 +232,6 @@ while True:
 				window.Element(key='status').Update('IDLE', text_color='green')
 				break
 
-		add_abso_time(dt_for_filename[0], float(values['timediv'])*10)
-
 if scope:
 	scope.close()
 window.close()
