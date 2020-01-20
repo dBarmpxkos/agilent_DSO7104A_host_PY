@@ -5,6 +5,7 @@ import pyvisa
 from datetime import datetime
 import PySimpleGUI as sg
 from decimal import Decimal
+import numpy as np
 from time import sleep 
 
 sg.ChangeLookAndFeel('Reddit')
@@ -70,18 +71,26 @@ def construct_datetime_name():
 		counter += 1
 	return dt_for_filename
 
-def measure_and_log(dt_for_filename, time_to_measure):
+def add_abso_time(time_interval):
+	interval = time_interval/1000
+	return np.arange(0, time_interval, interval)
+
+def measure_and_log(dt_for_filename, time_to_measure, time_interval):
 	global scope
 
 	counter = 0 # used for naming 
+	abso_time = add_abso_time(time_interval/10)
+
 	for ch in scope.channels[0:3]:
 		if ch.enabled: 
 			with open(dt_for_filename[counter], 'a') as f:
+				abso_count = 0 # used for iterating through absolute time
 				scope.measurement.initiate()
 				sleep(time_to_measure) 			# crude way to give time before requesting the waveform
 				waveform = ch.measurement.fetch_waveform()
 				for t in waveform:
-					f.write('\t'.join(str(s) for s in t) + '\n')
+					f.write('\t'.join(str(s) for s in t) + str(abso_time(abso_count)) + '\n')
+					abso_count += 1
 		counter += 1 
 # /funs -----------------------------------------------------------------
 
@@ -222,6 +231,8 @@ while True:
 
 				window.Element(key='status').Update('IDLE', text_color='green')
 				break
+
+		add_abso_time(dt_for_filename[0], float(values['timediv'])*10)
 
 if scope:
 	scope.close()
