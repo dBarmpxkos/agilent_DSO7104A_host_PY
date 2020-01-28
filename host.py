@@ -76,7 +76,6 @@ def construct_datetime_name():
             dt_for_filename[counter] = datetime.now().strftime("%d-%m-%Y_%H-%M-%S_ch") + \
                                        str(counter) + '.txt'
         counter += 1
-    print(dt_for_filename)
     return dt_for_filename
 
 def measure_and_log(dt_for_filename, time_to_measure):
@@ -109,7 +108,6 @@ def add_time_tailgate(filename_in, abso_time):
                 line = line.rstrip('\n') + '\t' + str(abso_time[abso_count])
                 print(line, file=ostr)
                 abso_count += 1
-    print(abso_count)
 
 # /funs -----------------------------------------------------------------
 
@@ -237,7 +235,7 @@ while True:
             # timeout needed for non-blocking read.
             event, values = window.read(timeout = 0.01)
             if event == 'Stop Logging':
-                abso_time = create_absO_time(float(values['timediv']), times_logged)
+                abso_time = create_absO_time(float(values['timediv'])*10, times_logged)
 
                 # stab abso time in there
                 for i in range(0, len(dt_for_filename)):
@@ -261,7 +259,7 @@ while True:
                     # timeout needed for non-blocking read
                     event, values = window.read(timeout = 0.01)
                     if event == 'Stop Logging':
-                        abso_time = create_absO_time(float(values['timediv']), times_logged)
+                        abso_time = create_absO_time(float(values['timediv'])*10, times_logged)
                         # stab abso time in there
                         for i in range(0, len(dt_for_filename)):
                             if dt_for_filename[i] is not ' ': # well its a way of what channels were activated
@@ -269,8 +267,8 @@ while True:
 
                         window.Element(key='status').Update('IDLE', text_color='green')
                         break
-                        
-                abso_time = create_absO_time(float(values['timediv']), times_logged)
+
+                abso_time = create_absO_time(float(values['timediv'])*10, times_logged)
                 # stab abso time in there
                 for i in range(0, len(dt_for_filename)):
                     if dt_for_filename[i] is not ' ': # well its a way of what channels were activated
