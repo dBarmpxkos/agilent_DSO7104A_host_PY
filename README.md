@@ -1,5 +1,5 @@
-# Python GUI controller for Agilent DSO7104A.
-:tv: :arrow_right: :computer:
+# Python GUI :computer: controller for ⚡ Agilent DSO7104A
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 1) install IOLibSuite_18_1_24715
 2) install Agilent546XX driver
