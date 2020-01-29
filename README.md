@@ -14,4 +14,4 @@ Exposes:
 - acquisition mode
 - amplitude control per channel
 - trigger settings (mode, source)
-- two logging modes (continius, with iterations)
+- two logging modes (continuous, with iterations)
